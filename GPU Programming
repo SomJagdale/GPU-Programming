@@ -1,0 +1,20 @@
+GPU Programming Concepts
+Parallal processing used primariliy - Graphics Rendering, Scientific Simulations, Machine Learning, Chriptocurrancy Mining, Gaming, Virtual Reality
+					Augmented Reality, Image processing, Video trascending 
+CUDA for Nvidia
+OpenCL for other vendors
+Global Memory
+Shared Memory 
+Constat Memory
+Language to write the code for GPU
+CUDO - Common Unified Device Architecture
+
+Requirements for CUDA Developement 
+CUDA Toolkits
+ 1. CUDA Compilers - nvcc
+ 2. CUDA Libraries 
+ 3. Developement Tools
+
+
+
+
