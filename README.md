@@ -1,6 +1,7 @@
 Concepts 
 
 GPU architecture 
+
 ![image](https://github.com/SomJagdale/GPU-Programming/assets/97079268/30788d4f-d9c6-42c4-88d8-ae683f603ee8)
 
 Vector Processors
@@ -32,3 +33,4 @@ Register Files
 ALU
 
 SIMD Processor - SM
+
