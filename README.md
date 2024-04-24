@@ -118,70 +118,253 @@ nvcc -cubin vector_add.cu -o vector_add.cubin
 
 vector_add.cubin
 
+GPU Programming Concepts
+Parallal processing used primariliy - Graphics Rendering, Scientific Simulations, Machine Learning, Chriptocurrancy Mining, Gaming, Virtual Reality
+					Augmented Reality, Image processing, Video trascending 
+CUDA for Nvidia
+OpenCL for other vendors
+Global Memory
+Shared Memory 
+Constat Memory
+Language to write the code for GPU
+CUDO - Common Unified Device Architecture
+
+Requirements for CUDA Developement 
+CUDA Toolkits
+ 1. CUDA Compilers - nvcc
+ 2. CUDA Libraries 
+ 3. Developement Tools
+
+GPU Configuration
+NVidia Maxwell Architecture Overview
+128 NVIDIA CUDA cores
+
+CUDA Toolkit
+NVIDIA GPU Drivers
+
+CUDA cores vs CPU cores
+
+vector_add.cu
+nvcc -o vector_add vector_add.cu
+nvcc -ptx vector_add.cu -o vector_add.ptx
+vector_add.ptx
+nvcc -c vector_add.cu -o vector_add.o
+vector_add.o
+nvcc -cubin vector_add.cu -o vector_add.cubin
+
+vector_add.cubin
+
+nvcc automatically recognizes the CUDA kernel functions in the source file (vector_add.cu) and compiles them to run on the GPU. Any other code outside of kernel functions will run on the CPU by default.
+
+To determine which parts of the code are executed on the GPU and which parts are executed on the CPU, you can look for CUDA kernel function definitions (functions declared with __global__ specifier) in the source file. These functions will be compiled to run on the GPU. Any other code in the file will run on the CPU.
+
+how I can see that there is process runing on GPU like ps we use for normal process running on the cpu
+nvidia-smi
+
+When scheduling tasks to the GPU, several system and shared libraries are involved in the process. 
+CUDA Runtime (libcudart):  for managing GPU memory, launching CUDA kernels, and synchronizing between the CPU and GPU.
+CUDA Driver (libcuda): It allows applications to interact directly with the GPU, bypassing the CUDA runtime API. This library is used by CUDA-enabled applications to initialize the GPU, allocate memory, and launch kernels.
+CUDA Compiler (nvcc): It translates CUDA kernel functions written in CUDA C/C++ into machine code that can be executed on the GPU.
+GPU Driver - The GPU driver acts as a bridge between the operating system and the GPU hardware.
+GPU Runtime Libraries (e.g., cuBLAS, cuDNN): Examples include cuBLAS for linear algebra operations and cuDNN for deep learning tasks
+
+
+///////////////////////////////////////////////////////printing time all details
+
 #include <iostream>
 #include <cuda_runtime.h>
 
-// CUDA kernel to add two vectors on the GPU
-__global__ void vectorAdd(float *a, float *b, float *c, int n) {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < n) {
-        c[index] = a[index] + b[index];
+// CUDA kernel to calculate factorial of a number
+__global__ void factorialKernel(int *result, int n, float *executionTimes) {
+    int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    
+    // Start timing
+    clock_t start_time = clock();
+    
+    // Calculate factorial
+    int fact = 1;
+    for (int i = 2; i <= tid + 1; ++i) {
+        fact *= i;
+    }
+    
+    // End timing
+    clock_t end_time = clock();
+    
+    // Store execution time
+    executionTimes[tid] = (float)(end_time - start_time) / CLOCKS_PER_SEC;
+    
+    // Print thread and block information along with factorial value and execution time
+    printf("Thread ID: %d, Block ID: %d, Block Dim: %d, Factorial of %d: %d, Execution Time: %f seconds\n",
+           threadIdx.x, blockIdx.x, blockDim.x, tid + 1, fact, executionTimes[tid]);
+    
+    if (tid < n) {
+        result[tid] = fact;
     }
 }
 
 int main() {
-    // Vector size
-    int n = 1000;
+    const int N = 100;
+    int *h_result = new int[N];
+    int *d_result;
+    float *d_executionTimes;
+    float *h_executionTimes = new float[N];
 
-    // Allocate memory on the host
-    float *h_a = new float[n];
-    float *h_b = new float[n];
-    float *h_c = new float[n];
+    // Start timing for main function
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
 
-    // Initialize input vectors
-    for (int i = 0; i < n; ++i) {
-        h_a[i] = i;
-        h_b[i] = i * 2;
-    }
+    // Allocate memory on device for result and execution times
+    cudaMalloc((void**)&d_result, N * sizeof(int));
+    cudaMalloc((void**)&d_executionTimes, N * sizeof(float));
 
-    // Allocate memory on the device
-    float *d_a, *d_b, *d_c;
-    cudaMalloc((void**)&d_a, n * sizeof(float));
-    cudaMalloc((void**)&d_b, n * sizeof(float));
-    cudaMalloc((void**)&d_c, n * sizeof(float));
-
-    // Copy input vectors from host to device
-    cudaMemcpy(d_a, h_a, n * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_b, h_b, n * sizeof(float), cudaMemcpyHostToDevice);
-
-    // Define block size and grid size
+    // Launch kernel
     int blockSize = 256;
-    int gridSize = (n + blockSize - 1) / blockSize;
+    int gridSize = (N + blockSize - 1) / blockSize;
+    factorialKernel<<<gridSize, blockSize>>>(d_result, N, d_executionTimes);
 
-    // Launch the kernel on the GPU
-    vectorAdd<<<gridSize, blockSize>>>(d_a, d_b, d_c, n);
+    // Copy result and execution times from device to host
+    cudaMemcpy(h_result, d_result, N * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_executionTimes, d_executionTimes, N * sizeof(float), cudaMemcpyDeviceToHost);
 
-    // Copy result vector from device to host
-    cudaMemcpy(h_c, d_c, n * sizeof(float), cudaMemcpyDeviceToHost);
-
-    // Print result (optional)
-    for (int i = 0; i < 10; ++i) {
-        std::cout << h_c[i] << " ";
+    // Print factorial results
+    for (int i = 0; i < N; ++i) {
+        std::cout << "Factorial of " << i+1 << ": " << h_result[i] << ", Execution Time: " << h_executionTimes[i] << " seconds\n";
     }
-    std::cout << std::endl;
 
-    // Free device memory
-    cudaFree(d_a);
-    cudaFree(d_b);
-    cudaFree(d_c);
+    // Free memory
+    cudaFree(d_result);
+    cudaFree(d_executionTimes);
+    delete[] h_result;
+    delete[] h_executionTimes;
 
-    // Free host memory
-    delete[] h_a;
-    delete[] h_b;
-    delete[] h_c;
+    // End timing for main function
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    std::cout << "Total time taken for all operations in main function: " << milliseconds << " milliseconds\n";
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
     return 0;
 }
+////////////////////////////////////////// Sequential on the CPU////////////
+#include <iostream>
+#include <chrono>
+
+// Function to calculate factorial of a number
+int factorial(int n) {
+    int fact = 1;
+    for (int i = 2; i <= n; ++i) {
+        fact *= i;
+    }
+    return fact;
+}
+
+int main() {
+    const int N = 100;
+    int *h_result = new int[N];
+
+    // Start timing for main function
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // Calculate factorial of numbers from 1 to N on CPU
+    for (int i = 1; i <= N; ++i) {
+        h_result[i-1] = factorial(i);
+    }
+
+    // End timing for main function
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    // Print factorial results and execution times
+    for (int i = 0; i < N; ++i) {
+        std::cout << "Factorial of " << i+1 << ": " << h_result[i] << std::endl;
+    }
+
+    // Free memory
+    delete[] h_result;
+
+    // Print total time taken for all operations in main function
+    std::cout << "Total time taken for all operations in main function: " << duration.count() * 1000 << " milliseconds" << std::endl;
+
+    return 0;
+}
+////////////////////////////
+
+
+////////////////////parallel on the cpu
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <chrono>
+
+// Function to calculate factorial of a number
+int factorial(int n) {
+    int fact = 1;
+    for (int i = 2; i <= n; ++i) {
+        fact *= i;
+    }
+    return fact;
+}
+
+int main() {
+    const int N = 100;
+    std::vector<int> h_result(N);
+
+    // Start timing for main function
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // Define the number of threads to be used
+    int num_threads = std::thread::hardware_concurrency();
+    if (num_threads == 0) {
+        num_threads = 4; // Set a default number of threads if hardware_concurrency returns 0
+    }
+
+    // Define a vector to store threads
+    std::vector<std::thread> threads;
+
+    // Define a lambda function to calculate factorial in parallel
+    auto calculate_factorial = [&](int start_idx, int end_idx) {
+        for (int i = start_idx; i < end_idx; ++i) {
+            h_result[i] = factorial(i + 1);
+        }
+    };
+
+    // Launch threads
+    for (int i = 0; i < num_threads; ++i) {
+        int start_idx = (i * N) / num_threads;
+        int end_idx = ((i + 1) * N) / num_threads;
+        threads.emplace_back(calculate_factorial, start_idx, end_idx);
+    }
+
+    // Join threads
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // End timing for main function
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+
+    // Print factorial results and execution times
+    for (int i = 0; i < N; ++i) {
+        std::cout << "Factorial of " << i + 1 << ": " << h_result[i] << std::endl;
+    }
+
+    // Print total time taken for all operations in main function
+    std::cout << "Total time taken for all operations in main function: " << duration.count() * 1000 << " milliseconds" << std::endl;
+
+    return 0;
+}
+//////////////////////////////////////
 
 
 
+
+
+
+`
